@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { Device, types } from 'mediasoup-client';
 
-const SERVER_URL = 'http://138.68.181.154:4000';
+const SERVER_URL = 'https://liveserver.usedistress.com';
 
 export function useAudioRoom(roomId: string, userId: string, role: 'speaker' | 'listener') {
   const [isConnected, setIsConnected] = useState(false);
