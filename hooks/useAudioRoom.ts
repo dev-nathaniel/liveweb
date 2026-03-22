@@ -14,7 +14,7 @@ export interface PeerInfo {
   isRecording?: boolean;
 }
 
-export function useAudioRoom(roomId: string, userId: string, role: 'speaker' | 'listener') {
+export function useAudioRoom(roomId: string, userId: string, role: 'speaker' | 'listener', bucketName: string) {
   const [isConnected, setIsConnected] = useState(false);
   const [consumers, setConsumers] = useState<{ id: string; track: MediaStreamTrack; userId?: string }[]>([]);
   const [peers, setPeers] = useState<PeerInfo[]>([]);
@@ -223,7 +223,7 @@ export function useAudioRoom(roomId: string, userId: string, role: 'speaker' | '
         if (!res.error) setIsLocalRecording(false);
       });
     } else {
-      socketRef.current.emit('startRecording', { roomId, producerId }, (res: any) => {
+      socketRef.current.emit('startRecording', { roomId, producerId, bucketName }, (res: any) => {
         if (!res.error) setIsLocalRecording(true);
         else console.error("Start recording error:", res.error);
       });

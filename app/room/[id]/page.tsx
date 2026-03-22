@@ -10,6 +10,7 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
     const [joined, setJoined] = useState(false);
     const [userName, setUserName] = useState('');
     const [role, setRole] = useState<'speaker' | 'listener'>('speaker');
+    const bucketName = process.env.NEXT_PUBLIC_GCS_BUCKET_NAME || 'breakthrough-family.firebasestorage.app';
 
     if (!joined) {
         return (
@@ -59,11 +60,11 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
         );
     }
 
-    return <ActiveRoom roomId={id} userId={userName} role={role} onLeave={() => setJoined(false)} />;
+    return <ActiveRoom roomId={id} userId={userName} role={role} bucketName={bucketName} onLeave={() => setJoined(false)} />;
 }
 
-function ActiveRoom({ roomId, userId, role, onLeave }: { roomId: string, userId: string, role: 'speaker' | 'listener', onLeave: () => void }) {
-    const { isConnected, error, peers, consumers, isMicOn, localStream, isLocalMuted, toggleMute, isLocalRecording, toggleRecording, leaveRoom } = useAudioRoom(roomId, userId, role);
+function ActiveRoom({ roomId, userId, role, bucketName, onLeave }: { roomId: string, userId: string, role: 'speaker' | 'listener', bucketName: string, onLeave: () => void }) {
+    const { isConnected, error, peers, consumers, isMicOn, localStream, isLocalMuted, toggleMute, isLocalRecording, toggleRecording, leaveRoom } = useAudioRoom(roomId, userId, role, bucketName);
 
     const handleLeave = () => {
         leaveRoom();
