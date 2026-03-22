@@ -6,11 +6,25 @@ import { Device, types } from 'mediasoup-client';
 
 const SERVER_URL = 'https://liveserver.usedistress.com';
 
+export interface PeerInfo {
+  peerId: string;
+  userId: string;
+  role: string;
+  isMuted: boolean;
+  isRecording?: boolean;
+}
+
 export function useAudioRoom(roomId: string, userId: string, role: 'speaker' | 'listener') {
   const [isConnected, setIsConnected] = useState(false);
   const [consumers, setConsumers] = useState<{ id: string; track: MediaStreamTrack; userId?: string }[]>([]);
+  const [peers, setPeers] = useState<PeerInfo[]>([]);
   const [error, setError] = useState<string | null>(null);
+  
   const [isMicOn, setIsMicOn] = useState(false);
+  const [isLocalMuted, setIsLocalMuted] = useState(false);
+  const [isLocalRecording, setIsLocalRecording] = useState(false);
+  const [producerId, setProducerId] = useState<string | null>(null);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
 
   const socketRef = useRef<Socket | null>(null);
   const deviceRef = useRef<Device | null>(null);
@@ -46,6 +60,8 @@ export function useAudioRoom(roomId: string, userId: string, role: 'speaker' | '
             }
             
             // 3. Init Mediasoup Device
+            setPeers(res.peers || []);
+
             const device = new Device();
             deviceRef.current = device;
             await device.load({ routerRtpCapabilities: res.routerRtpCapabilities });
@@ -66,6 +82,26 @@ export function useAudioRoom(roomId: string, userId: string, role: 'speaker' | '
               produceAudio();
             }
           });
+        });
+
+        socket.on('peerJoined', (peerInfo: PeerInfo) => {
+          setPeers(prev => [...prev, peerInfo]);
+        });
+
+        socket.on('peerClosed', ({ peerId }) => {
+          setPeers(prev => prev.filter(p => p.peerId !== peerId));
+        });
+
+        socket.on('peerMicToggled', ({ peerId, isMuted }) => {
+          setPeers(prev => prev.map(p => p.peerId === peerId ? { ...p, isMuted } : p));
+        });
+
+        socket.on('peerRecordingStarted', ({ peerId }) => {
+          setPeers(prev => prev.map(p => p.peerId === peerId ? { ...p, isRecording: true } : p));
+        });
+
+        socket.on('peerRecordingStopped', ({ peerId }) => {
+          setPeers(prev => prev.map(p => p.peerId === peerId ? { ...p, isRecording: false } : p));
         });
 
         socket.on('newProducer', async ({ producerId, userId: remoteUserId }) => {
@@ -112,25 +148,16 @@ export function useAudioRoom(roomId: string, userId: string, role: 'speaker' | '
           producerTransportRef.current = transport;
 
           transport.on('connect', ({ dtlsParameters }, callback, errback) => {
-            socketRef.current?.emit('connectTransport', {
-              roomId,
-              transportId: transport.id,
-              dtlsParameters
-            }, (res: any) => {
-              if (res.error) errback(new Error(res.error));
-              else callback();
-            });
+            socketRef.current?.emit('connectTransport', { roomId, transportId: transport.id, dtlsParameters }, (res: any) => res.error ? errback(new Error(res.error)) : callback());
           });
 
           transport.on('produce', ({ kind, rtpParameters }, callback, errback) => {
-            socketRef.current?.emit('produce', {
-              roomId,
-              transportId: transport.id,
-              kind,
-              rtpParameters
-            }, (res: any) => {
+            socketRef.current?.emit('produce', { roomId, transportId: transport.id, kind, rtpParameters }, (res: any) => {
               if (res.error) errback(new Error(res.error));
-              else callback({ id: res.id });
+              else {
+                setProducerId(res.id);
+                callback({ id: res.id });
+              }
             });
           });
 
@@ -148,14 +175,7 @@ export function useAudioRoom(roomId: string, userId: string, role: 'speaker' | '
           consumerTransportRef.current = transport;
 
           transport.on('connect', ({ dtlsParameters }, callback, errback) => {
-            socketRef.current?.emit('connectTransport', {
-              roomId,
-              transportId: transport.id,
-              dtlsParameters
-            }, (res: any) => {
-              if (res.error) errback(new Error(res.error));
-              else callback();
-            });
+            socketRef.current?.emit('connectTransport', { roomId, transportId: transport.id, dtlsParameters }, (res: any) => res.error ? errback(new Error(res.error)) : callback());
           });
 
           resolve();
@@ -167,6 +187,7 @@ export function useAudioRoom(roomId: string, userId: string, role: 'speaker' | '
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         localStreamRef.current = stream;
+        setLocalStream(stream);
         const track = stream.getAudioTracks()[0];
         
         await producerTransportRef.current!.produce({ track });
@@ -185,11 +206,36 @@ export function useAudioRoom(roomId: string, userId: string, role: 'speaker' | '
     };
   }, [roomId, userId, role]);
 
+  function toggleMute() {
+    if (!producerId || !socketRef.current) return;
+    const newState = !isLocalMuted;
+    socketRef.current.emit('toggleMic', { roomId, producerId, isMuted: newState }, (res: any) => {
+      if (!res.error) {
+         setIsLocalMuted(newState);
+      }
+    });
+  }
+
+  function toggleRecording() {
+    if (!producerId || !socketRef.current) return;
+    if (isLocalRecording) {
+      socketRef.current.emit('stopRecording', (res: any) => {
+        if (!res.error) setIsLocalRecording(false);
+      });
+    } else {
+      socketRef.current.emit('startRecording', { roomId, producerId }, (res: any) => {
+        if (!res.error) setIsLocalRecording(true);
+        else console.error("Start recording error:", res.error);
+      });
+    }
+  }
+
   function leaveRoom() {
     localStreamRef.current?.getTracks().forEach(t => t.stop());
+    setLocalStream(null);
     socketRef.current?.disconnect();
     setIsConnected(false);
   }
 
-  return { isConnected, error, consumers, isMicOn, leaveRoom };
+  return { isConnected, error, peers, consumers, isMicOn, localStream, isLocalMuted, toggleMute, isLocalRecording, toggleRecording, leaveRoom };
 }
