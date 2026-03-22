@@ -66,6 +66,9 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
 function ActiveRoom({ roomId, userId, role, bucketName, onLeave }: { roomId: string, userId: string, role: 'speaker' | 'listener', bucketName: string, onLeave: () => void }) {
     const { isConnected, error, peers, consumers, isMicOn, localStream, isLocalMuted, toggleMute, isLocalRecording, toggleRecording, leaveRoom } = useAudioRoom(roomId, userId, role, bucketName);
 
+    // Speaker's getUserMedia inherently unlocks WebRTC audio. Listeners require a manual tap on iOS.
+    const [audioUnlocked, setAudioUnlocked] = useState(role === 'speaker');
+
     const handleLeave = () => {
         leaveRoom();
         onLeave();
@@ -98,6 +101,20 @@ function ActiveRoom({ roomId, userId, role, bucketName, onLeave }: { roomId: str
                                 {isLocalMuted ? 'Unmute' : 'Mute'}
                             </button>
                         </div>
+                    )}
+
+                    {role === 'listener' && !audioUnlocked && isConnected && (
+                        <button
+                            onClick={() => {
+                                document.querySelectorAll('audio.remote-audio-consumer').forEach((a: any) => {
+                                    a.play().catch(console.error);
+                                });
+                                setAudioUnlocked(true);
+                            }}
+                            className="bg-green-600 animate-bounce text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-green-500/50 transition-all"
+                        >
+                            Tap to Hear Audio
+                        </button>
                     )}
 
                     <button
