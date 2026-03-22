@@ -47,7 +47,16 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
 
                     <button
                         onClick={() => {
-                            if (userName.trim()) setJoined(true);
+                            if (userName.trim()) {
+                                // PLATFORM AUDIO UNLOCK TRICK:
+                                // Play a totally silent audio string. Because this happens exactly exactly
+                                // when the user physically clicks their mouse, the browser permanently
+                                // grants this page permission to autoplay audio later.
+                                const unlocker = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA");
+                                unlocker.play().catch(() => { });
+
+                                setJoined(true);
+                            }
                         }}
                         disabled={!userName.trim()}
                         className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold py-3 px-4 rounded-lg shadow-lg hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
