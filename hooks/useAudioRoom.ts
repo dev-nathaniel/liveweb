@@ -51,7 +51,9 @@ export function useAudioRoom(roomId: string, userId: string, role: 'speaker' | '
             await device.load({ routerRtpCapabilities: res.routerRtpCapabilities });
 
             // 4. Create Transports
-            await createSendTransport();
+            if (role === 'speaker') {
+              await createSendTransport();
+            }
             await createRecvTransport();
 
             // 4.5 Get existing producers in the room to sync state
