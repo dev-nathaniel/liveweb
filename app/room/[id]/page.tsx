@@ -128,7 +128,7 @@ function ActiveRoom({ roomId, userId, role, bucketName, onLeave }: { roomId: str
                 />
 
                 {/* Remote Users */}
-                {peers.map(p => {
+                {peers.filter(p => p.userId !== userId).map(p => {
                     const consumer = consumers.find(c => c.userId === p.userId);
                     const stream = consumer ? new MediaStream([consumer.track]) : null;
 
