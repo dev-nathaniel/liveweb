@@ -9,8 +9,9 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
     const { id } = use(params);
     const [joined, setJoined] = useState(false);
     const [userName, setUserName] = useState('');
-    const [role, setRole] = useState<'speaker' | 'listener'>('speaker');
+    const [role, setRole] = useState<'broadcaster' | 'audience'>('broadcaster');
     const bucketName = process.env.NEXT_PUBLIC_GCS_BUCKET_NAME || 'breakthrough-family.firebasestorage.app';
+    console.log('RoomPage', id, userName, role, bucketName);
 
     if (!joined) {
         return (
@@ -31,12 +32,12 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
                         <label className="block text-sm font-medium text-gray-400 mb-2">Role</label>
                         <div className="flex space-x-4">
                             <button
-                                onClick={() => setRole('speaker')}
-                                className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all ${role === 'speaker' ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
+                                onClick={() => setRole('broadcaster')}
+                                className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all ${role === 'broadcaster' ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
                             >Speaker</button>
                             <button
-                                onClick={() => setRole('listener')}
-                                className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all ${role === 'listener' ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
+                                onClick={() => setRole('audience')}
+                                className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all ${role === 'audience' ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
                             >Listener</button>
                         </div>
                     </div>
@@ -63,11 +64,12 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
     return <ActiveRoom roomId={id} userId={userName} role={role} bucketName={bucketName} onLeave={() => setJoined(false)} />;
 }
 
-function ActiveRoom({ roomId, userId, role, bucketName, onLeave }: { roomId: string, userId: string, role: 'speaker' | 'listener', bucketName: string, onLeave: () => void }) {
+function ActiveRoom({ roomId, userId, role, bucketName, onLeave }: { roomId: string, userId: string, role: 'broadcaster' | 'audience', bucketName: string, onLeave: () => void }) {
+    console.log('ActiveRoom', roomId, userId, role, bucketName);
     const { isConnected, error, peers, consumers, isMicOn, localStream, isLocalMuted, toggleMute, isLocalRecording, toggleRecording, leaveRoom } = useAudioRoom(roomId, userId, role, bucketName);
 
     // Speaker's getUserMedia inherently unlocks WebRTC audio. Listeners require a manual tap on iOS.
-    const [audioUnlocked, setAudioUnlocked] = useState(role === 'speaker');
+    const [audioUnlocked, setAudioUnlocked] = useState(role === 'broadcaster');
 
     const handleLeave = () => {
         leaveRoom();
@@ -86,7 +88,7 @@ function ActiveRoom({ roomId, userId, role, bucketName, onLeave }: { roomId: str
                         {isConnected ? 'Connected' : 'Disconnected'}
                     </div>
 
-                    {role === 'speaker' && isMicOn && (
+                    {role === 'broadcaster' && isMicOn && (
                         <div className="flex space-x-2">
                             <button
                                 onClick={toggleRecording}
@@ -103,7 +105,7 @@ function ActiveRoom({ roomId, userId, role, bucketName, onLeave }: { roomId: str
                         </div>
                     )}
 
-                    {role === 'listener' && !audioUnlocked && isConnected && (
+                    {role === 'audience' && !audioUnlocked && isConnected && (
                         <button
                             onClick={() => {
                                 document.querySelectorAll('audio.remote-audio-consumer').forEach((a: any) => {
@@ -139,7 +141,7 @@ function ActiveRoom({ roomId, userId, role, bucketName, onLeave }: { roomId: str
                 <UserBox
                     name={`${userId} (You)`}
                     role={role}
-                    isMuted={role === 'listener' || isLocalMuted || !isMicOn}
+                    isMuted={role === 'audience' || isLocalMuted || !isMicOn}
                     isRecording={isLocalRecording}
                     stream={localStream}
                 />
@@ -153,8 +155,8 @@ function ActiveRoom({ roomId, userId, role, bucketName, onLeave }: { roomId: str
                         <div key={p.peerId} className="contents">
                             <UserBox
                                 name={p.userId}
-                                role={p.role as 'speaker' | 'listener'}
-                                isMuted={p.isMuted || p.role === 'listener'}
+                                role={p.role as 'broadcaster' | 'audience'}
+                                isMuted={p.isMuted || p.role === 'audience'}
                                 isRecording={p.isRecording || false}
                                 stream={stream}
                             />
@@ -167,7 +169,7 @@ function ActiveRoom({ roomId, userId, role, bucketName, onLeave }: { roomId: str
     );
 }
 
-function UserBox({ name, role, isMuted, isRecording, stream }: { name: string, role: 'speaker' | 'listener', isMuted: boolean, isRecording: boolean, stream: MediaStream | null }) {
+function UserBox({ name, role, isMuted, isRecording, stream }: { name: string, role: 'broadcaster' | 'audience', isMuted: boolean, isRecording: boolean, stream: MediaStream | null }) {
     const isSpeaking = useAudioIndicator(stream);
 
     return (
@@ -181,7 +183,7 @@ function UserBox({ name, role, isMuted, isRecording, stream }: { name: string, r
             <p className="mt-4 font-medium z-10">{name}</p>
             <div className="flex items-center space-x-2 mt-1 z-10">
                 <span className="text-xs text-gray-400 capitalize">{role}</span>
-                {role === 'speaker' && (
+                {role === 'broadcaster' && (
                     <span className={`text-xs ${isMuted ? 'text-red-400' : 'text-gray-400'}`}>
                         {isMuted ? 'Muted 👋' : 'Mic On'}
                     </span>

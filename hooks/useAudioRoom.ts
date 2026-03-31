@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { Device, types } from 'mediasoup-client';
 
-const SERVER_URL = 'https://liveserver.usedistress.com';
+const SERVER_URL = 'http://localhost:4000';
+// const SERVER_URL = 'https://liveserver.usedistress.com';
 
 export interface PeerInfo {
   peerId: string;
@@ -14,7 +15,7 @@ export interface PeerInfo {
   isRecording?: boolean;
 }
 
-export function useAudioRoom(roomId: string, userId: string, role: 'speaker' | 'listener', bucketName: string) {
+export function useAudioRoom(roomId: string, userId: string, role: 'broadcaster' | 'audience', bucketName: string) {
   const [isConnected, setIsConnected] = useState(false);
   const [consumers, setConsumers] = useState<{ id: string; track: MediaStreamTrack; userId?: string }[]>([]);
   const [peers, setPeers] = useState<PeerInfo[]>([]);
@@ -38,22 +39,24 @@ export function useAudioRoom(roomId: string, userId: string, role: 'speaker' | '
     async function init() {
       try {
         // 1. Get Token
+        console.log('Token endpoint hit');
         const res = await fetch(`${SERVER_URL}/api/token`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, role, roomId }),
+          body: JSON.stringify({ userId, role, channelName: roomId }),
         });
         const { token } = await res.json();
+        console.log('Token: ', token);
 
         // 2. Connect Socket
-        const socket = io(SERVER_URL, { auth: { token } });
+        const socket = io(SERVER_URL, { auth: { userId } });
         socketRef.current = socket;
 
         socket.on('connect', () => {
           if (!mounted) return;
           setIsConnected(true);
           
-          socket.emit('joinRoom', roomId, async (res: any) => {
+          socket.emit('joinRoom', { channelName: roomId, token }, async (res: any) => {
             if (res.error) {
               setError(res.error);
               return;
@@ -67,7 +70,7 @@ export function useAudioRoom(roomId: string, userId: string, role: 'speaker' | '
             await device.load({ routerRtpCapabilities: res.routerRtpCapabilities });
 
             // 4. Create Transports
-            if (role === 'speaker') {
+            if (role === 'broadcaster') {
               await createSendTransport();
             }
             await createRecvTransport();
@@ -78,7 +81,7 @@ export function useAudioRoom(roomId: string, userId: string, role: 'speaker' | '
             });
 
             // 5. If Speaker, produce audio
-            if (role === 'speaker') {
+            if (role === 'broadcaster') {
               produceAudio();
             }
           });
